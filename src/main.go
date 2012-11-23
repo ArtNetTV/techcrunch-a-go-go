@@ -108,7 +108,7 @@ func parsePosts() {
 
     //TODO: Add time to front of data
     var file *os.File
-    if file, err = os.Create("./something.json"); err != nil {
+    if file, err = os.Create("./data/something.json"); err != nil {
         fmt.Println("Failed to create file")
     }
     defer file.Close()
@@ -125,7 +125,7 @@ func parsePosts() {
 
 
     var file2 *os.File
-    if file2, err = os.Open("./something.json"); err != nil {
+    if file2, err = os.Open("./data/something.json"); err != nil {
         fmt.Println("Could not open")
     }
 
