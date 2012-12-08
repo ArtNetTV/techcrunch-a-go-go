@@ -105,7 +105,7 @@ func parsePosts() {
         //fmt.Println(post)
     })
 
-    fmt.Println(captureEvent)
+    //fmt.Println(captureEvent)
 
     //TODO: Add time to front of data
     var file *os.File
@@ -143,7 +143,7 @@ func parsePosts() {
 
     fmt.Println(readCE.CapturedAt)
     */
-    fmt.Println("All done")
+    //fmt.Println("All done")
     //TODO: Write output to disk
 }
 
