@@ -68,6 +68,7 @@ func parsePosts() {
     matches := document.Find("div .post")
     var captureEvent CaptureEvent
     captureEvent.Posts = make([]Post, matches.Length())
+	captureEvent.CapturedAt = time.Now()
 
     matches.Each(func(i int, s *goquery.Selection) {
 
@@ -108,7 +109,7 @@ func parsePosts() {
 
     //TODO: Add time to front of data
     var file *os.File
-    if file, err = os.Create("./data/something.json"); err != nil {
+    if file, err = os.Create("./data/" + captureEvent.CapturedAt.Format(time.RFC3339)  + ".json"); err != nil {
         fmt.Println("Failed to create file")
     }
     defer file.Close()
@@ -123,7 +124,7 @@ func parsePosts() {
         fmt.Println("Failed to write")
     }
 
-
+	/*
     var file2 *os.File
     if file2, err = os.Open("./data/something.json"); err != nil {
         fmt.Println("Could not open")
@@ -132,7 +133,7 @@ func parsePosts() {
     var fi os.FileInfo
     fi, _ = file2.Stat()
     fmt.Println(fi.Size())
-
+	*/
     /*
     var d []byte
     d = make([]byte, fi.Size())
@@ -147,5 +148,9 @@ func parsePosts() {
 }
 
 func main() {
-     parsePosts()
+	 c := time.Tick(10 * time.Second);
+	 for _ = range c {
+	     fmt.Println("ticking")
+     	 parsePosts()	  
+	 }
 }
