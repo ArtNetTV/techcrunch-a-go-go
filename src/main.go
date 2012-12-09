@@ -148,9 +148,10 @@ func parsePosts() {
 }
 
 func main() {
-	 c := time.Tick(10 * time.Second);
+         parsePosts()
+	 c := time.Tick(60 * 5 * time.Second);
 	 for _ = range c {
-	     fmt.Println("ticking")
-     	 parsePosts()	  
+	     fmt.Println("ticking:", time.Now().Format(time.RFC3339))
+     	     parsePosts()	  
 	 }
 }
