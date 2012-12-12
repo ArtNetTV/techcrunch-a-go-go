@@ -1,157 +1,123 @@
 package main
 
-/*
-
-Questions to answer:
- - what is the average time an article is on the techcrunch homepage
- - what is the average time an article is above the fold
- - authors ordered by article count
- - author with most minutes on the homepage
-
-{
-    time: "2012-11-15T16:30:00",
-    posts: [
-        {
-            Id: "asdf",
-            Title: "xxx",
-            Author: "me",
-            Url: "http://xxx",
-            Shares: 0,
-            Likes: 0
-            Comments: 0
-        },
-        ...
-    ]
-}
-
-*/
-
 import (
-       "fmt"
-       //"foobar"
-       //"exp/html"
-       "net/http"
-       "strings"
-       "io/ioutil"
-       "github.com/PuerkitoBio/goquery"
-       "encoding/json"
-       "time"
-       "os"
+	   "fmt"
+	   "net/http"
+	   "strings"
+	   "io/ioutil"
+	   "github.com/PuerkitoBio/goquery"
+	   "encoding/json"
+	   "time"
+	   "os"
+	   "errors"
 )
 
-//comment
 type Post struct {
-     Id string
-     Title string
-     Author string
-     Url string
-     Shares uint16
-     Likes uint16
-     Comments uint16
+	 Id string
+	 Title string
+	 Author string
+	 Url string
+	 Shares uint16
+	 Likes uint16
+	 Comments uint16
 }
 
-//comment
 type CaptureEvent struct {
-     CapturedAt time.Time
-     Posts []Post
+	 CapturedAt time.Time
+	 Posts []Post
 }
 
-func parsePosts() {
-    var document *goquery.Document
-    var err error
+func parsePosts() error {
+	var document *goquery.Document
+	var err error
 
-    if document, err = goquery.NewDocument("http://www.techcrunch.com"); err != nil {
-        fmt.Println("sheeeet")
-    }
+	if document, err = goquery.NewDocument("http://www.techcrunch.com"); err != nil {
+	   return errors.New("Failed to fetch techcrunch article")
+	}
 
+	matches := document.Find("div .post")
+	if matches == nil {
+	   return nil
+	}
 
-    matches := document.Find("div .post")
-    var captureEvent CaptureEvent
-    captureEvent.Posts = make([]Post, matches.Length())
+	var captureEvent CaptureEvent
+	captureEvent.Posts = make([]Post, matches.Length())
 	captureEvent.CapturedAt = time.Now()
 
-    matches.Each(func(i int, s *goquery.Selection) {
+	matches.Each(func(i int, s *goquery.Selection) {
 
-        //TODO: Defer?
-        var post *Post = &captureEvent.Posts[i];
+		var post *Post = &captureEvent.Posts[i];
 
-        //TODO :Errors
-        post.Id, _ = s.Attr("id")
-        post.Author = s.Find("a span.name").Text();
-        if post.Author == "" {
-            post.Author = s.Find("div.by-line div.by-line").Text()
-        }
+		post.Id, _ = s.Attr("id")
+		if post.Author = s.Find("a span.name").Text(); post.Author == "" {
+			post.Author = s.Find("div.by-line div.by-line").Text()
+		}
+		post.Title = strings.TrimSpace(s.Find("h2.headline a").Text());
+		post.Url, _ = s.Find("h2.headline a").Attr("href")
 
-        post.Title = strings.TrimSpace(s.Find("h2.headline a").Text());
-        post.Url, _ = s.Find("h2.headline a").Attr("href")
+		response, err := http.Get("https://graph.facebook.comxs/fql?q=SELECT%20share_count,like_count,comment_count,click_count%20FROM%20link_stat%20WHERE%20url='" + post.Url + "'")
+		if err != nil {
+			return
+		}
+		defer response.Body.Close()
 
-        response, _ := http.Get("https://graph.facebook.com/fql?q=SELECT%20share_count,like_count,comment_count,click_count%20FROM%20link_stat%20WHERE%20url='" + post.Url + "'")
-        //    fmt.Println('whoops')
-        //}
+		fbJson, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			return
+		}
 
-        xx, _ := ioutil.ReadAll(response.Body)
+		var fbData interface{}
+		if err = json.Unmarshal(fbJson, &fbData); err != nil {
+			return
+		}
 
-        var fbData interface{}
-        _ = json.Unmarshal(xx, &fbData);
+		fqlRoot, ok := fbData.(map[string]interface{})
+		if !ok || fqlRoot["data"] == nil {
+			return
+		}
 
-        // We can create types, but we don't need to since we can just do type assertions instead
-        // of declaring explicit types
-        zz := fbData.(map[string]interface{})["data"].([]interface{})[0].(map[string]interface{})
+		fqlDataItems, ok := fqlRoot["data"].([]interface{})
+		if !ok || len(fqlDataItems) == 0 {
+			return
+		}
 
-        post.Shares = uint16(zz["share_count"].(float64))
-        post.Likes = uint16(zz["like_count"].(float64))
-        post.Comments = uint16(zz["comment_count"].(float64))
+		fqlFields, ok := fqlDataItems[0].(map[string]interface{})
+		if !ok {
+			return
+		}
 
-        //fmt.Println(post)
-    })
+		post.Shares = uint16(fqlFields["share_count"].(float64))
+		post.Likes = uint16(fqlFields["like_count"].(float64))
+		post.Comments = uint16(fqlFields["comment_count"].(float64))
+	})
 
-    //fmt.Println(captureEvent)
+	var file *os.File
+	if file, err = os.Create("./data/" + captureEvent.CapturedAt.Format(time.RFC3339)  + ".json"); err != nil {
+		return errors.New("Failed to create file")
+	}
+	defer file.Close()
 
-    //TODO: Add time to front of data
-    var file *os.File
-    if file, err = os.Create("./data/" + captureEvent.CapturedAt.Format(time.RFC3339)  + ".json"); err != nil {
-        fmt.Println("Failed to create file")
-    }
-    defer file.Close()
+	var b []byte
+	if b, err = json.Marshal(captureEvent); err != nil {
+		return errors.New("Failed to marshal JSON")
+	}
 
-    var b []byte
-    if b, err = json.Marshal(captureEvent); err != nil {
-        fmt.Println("Failed to marshal")
-    }
+	if _, err := file.WriteString(string(b)); err != nil {
+		return errors.New("Failed to write JSON")
+	}
 
-    //TODO: Is this the best way
-    if _, err := file.WriteString(string(b)); err != nil {
-        fmt.Println("Failed to write")
-    }
-
-	/*
-    var file2 *os.File
-    if file2, err = os.Open("./data/something.json"); err != nil {
-        fmt.Println("Could not open")
-    }
-
-    var fi os.FileInfo
-    fi, _ = file2.Stat()
-    fmt.Println(fi.Size())
-	*/
-    /*
-    var d []byte
-    d = make([]byte, fi.Size())
-    _, _ = file2.Read(d)
-    var readCE CaptureEvent
-    _ = json.Unmarshal(d, &readCE)
-
-    fmt.Println(readCE.CapturedAt)
-    */
-    //fmt.Println("All done")
-    //TODO: Write output to disk
+	return nil
 }
 
 func main() {
-         parsePosts()
-	 c := time.Tick(60 * 5 * time.Second);
-	 for _ = range c {
-	     fmt.Println("ticking:", time.Now().Format(time.RFC3339))
-     	     parsePosts()	  
-	 }
+	var err error
+	parsePosts()
+
+	c := time.Tick(60 * 5 * time.Second)
+	for _ = range c {
+		fmt.Println("ticking:", time.Now().Format(time.RFC3339))
+		if err = parsePosts(); err != nil {
+			fmt.Println("Error processing post: %s", err)
+		}
+	}
 }
